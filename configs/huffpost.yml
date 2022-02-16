@@ -1,0 +1,34 @@
+# experiment configure
+exp_name: 'huffpost_plain'
+log_path: './log'
+data_path: './data/HuffPost/News_Category_Dataset_v2.json'
+
+# model config
+classifier: 'rr'
+use_bert: False
+stat_type: ['uni', 'ent'] #unigram - s(x) / entropy - t(x)
+word_represent: 'default' # default, avg, cnn, idf
+hid_dim: 50
+dropout: 0.1
+bidirectional: True
+
+# train / finetune
+mode: 'train'
+use_cuda: True
+
+# training config
+optimizer: 'adam'
+lr: 0.001
+n_epoch: 1000
+n_episode: 100 # number of sampled episodes / epoch
+n_test_epi: 1000
+early_stop: 20 #20epoch 동안 val loss 안 나아지면 stop
+seed: 330 # 소스코드 시드 
+
+# label config
+label_split: [20, 5, 16]
+split_type: 'easy'
+n_way: 5
+n_shot: 1
+n_query: 25
+

@@ -1,0 +1,8 @@
+./data
+test.ipynb
+./log
+.vector_cache
+__pycache__
+
+
+
