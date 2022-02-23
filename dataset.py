@@ -1,17 +1,69 @@
 import json
 from collections import Counter, OrderedDict
-from re import S
 import spacy
-from spacy import get_tokenizer
 from tqdm import tqdm
 
+
+# Create a blank Tokenizer with just the English vocab
+from torchtext.vocab import vocab
 from torch.utils.data import Dataset
 
+spacy_en = spacy.load('en_core_web_sm')
 
+# class for construting vocabulary
+class Vocabulary(object):
+    def __init__(self, args):
+        self.args = args
+        self.counter = Counter()
+        self.vocab = None
+
+        self.update_counter(args.data_path)
+        
+        # construct vocab
+        # https://pytorch.org/text/stable/vocab.html
+        sorted_by_freq_tuples = sorted(self.counter.items(), key=lambda x: x[1], reverse=True)
+        ordered_dict = OrderedDict(sorted_by_freq_tuples)
+        
+        self.vocab = vocab(ordered_dict, min_freq=5)
+        self.vocab.insert_token('<UNK>', 0)
+        self.vocab.insert_token('<PAD>', 1) 
+        self.vocab.set_default_index(self.vocab['<UNK>']) #make default index same as index of unk_token
+        print(self.vocab['out of vocab'] is self.vocab['UNK']) # return True
+        print(f"사전크기:{len(self.vocab)}")
+        print(f"Vocabulary for {args.data_path} has constructed!")
+        import pickle
+        with open('vocab.pkl', 'wb') as f:
+            pickle.dump(self.vocab, f)
+        
+    def tokenize(self, s):
+        # BPE
+        if self.args.use_bert:
+            pass
+            # tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            # return tokenizer.encode(s, add_special_tokens=False)
+        # word Lv. standard tokenizer
+        else:
+            return [tok.text for tok in spacy_en.tokenizer(s)]
+        
+    def update_counter(self, datapath):
+        if len(datapath.split('/')) == 4:
+            name = datapath.split('/')[2]
+        elif len(datapath.split('/')) == 3:
+            name = datapath.split('/')[1]
+            
+        assert isinstance(name, str), "name must be a string type"
+        
+        if name.lower() == "huffpost":
+            with open(datapath, 'r', encoding='utf-8') as f:
+                for line in tqdm(f, desc="constructing vocab"):
+                    obj = json.loads(line)
+                    self.counter.update(self.tokenize(obj["headline"]))
+                    
+                    
 
 # num of labels for train / val / test
 class TextClassificationData(Dataset):
-    def __init__(self, args, classes:list) -> None:
+    def __init__(self, args, vocab, classes:list) -> None:
         """TextClassificaiton Dataset
 
         Args:
@@ -25,45 +77,35 @@ class TextClassificationData(Dataset):
         self.classes = classes
         self.stats = {}
         
-        self.counter = Counter()
-        self.vocab = None
-        
-        # BPE
-        if args.use_bert:
-            self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        # word Lv. 
-        else:
-            self.tokenizer = get_tokenizer('spacy', 'en_core_web_sm')
-        
-        # parse data
-        self.parser(args.datapath)
-        
-        # construct vocab
-        sorted_by_freq_tuples = sorted(self.counter.items(), key=lambda x: x[1], reverse=True)
-        ordered_dict = OrderedDict(sorted_by_freq_tuples)
-        self.vocab = vocab(ordered_dict)
-        self.vocab.append_token('<PAD>') #맨 마지막 순번으로 추가 예상
+        self.vocab = vocab
 
+        # parse data
+        self.parse_data(args.data_path)
+        
     # word to index & tokenize
-    def tokenize(self, s):
+    def token_indexing(self, s):
+        # BPE
         if self.args.use_bert:
-            return self.tokenizer.encode(s, add_special_tokens=False)
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            return tokenizer.encode(s, add_special_tokens=False)
+        # word Lv. standard tokenizer
         else:
-            tokens = self.tokenizer(s)
+            tokens = [tok.text for tok in spacy_en.tokenizer(s)]
             return self.vocab(tokens)
 
     # Data paser
-    def parser(self, datapath):
-        name = datapath.split('/')[0]
+    def parse_data(self, datapath):
+        if len(datapath.split('/')) == 4:
+            name = datapath.split('/')[2]
+        elif len(datapath.split('/')) == 3:
+            name = datapath.split('/')[1]
+            
         assert isinstance(name, str), "name must be a string type"
         
-        if name == "huffpost":
+        if name.lower() == "huffpost":
             with open(datapath, 'r', encoding='utf-8') as f:
                 for line in tqdm(f, desc="caching data for given class list.."):
                     obj = json.loads(line)
-                    
-                    # 단어사전 구축용
-                    self.counter.update(self.tokenizer(obj["headline"]))
                     
                     # self.classes에 속한 샘플들만 데이터 취득
                     if obj["category"] in self.classes:
@@ -86,17 +128,17 @@ class TextClassificationData(Dataset):
                 "length" : int,
             }
         """
-        ids = self.tokenize(self.data[idx]["text"])
+        ids = self.token_indexing(self.data[idx]["text"])
         if isinstance(ids, list):
             length = len(ids)
         elif isinstance(ids, torch.tensor):
             length = int(ids.shape[0])
         
-        
         return {
-            "text": self.tokenize(self.data[idx]["text"]),
+            "tokenized": self.token_indexing(self.data[idx]["text"]),
             "label": self.data[idx]["label"],
-            "length": length
+            "length": length,
+            "vocab_size": len(self.vocab)
         }
 
     def __len__(self):

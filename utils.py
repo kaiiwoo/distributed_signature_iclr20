@@ -15,14 +15,13 @@ def convert_tensor(input_dict, device='cuda'):
     return input_dict
     
     
-def tprint(s):
+def with_time(s):
     '''
         print datetime and s
         @params:
             s (str): the string to be printed
     '''
-    print('{}: {}'.format(
-        datetime.datetime.now().strftime('%02y/%02m/%02d %H:%M:%S'), s), flush=True)
+    return str(datetime.now().strftime('%Y-%m-%d-%H-%M-%S')) + '_' + s
 
 
 def set_random_seed(seed):

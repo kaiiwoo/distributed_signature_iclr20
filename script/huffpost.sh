@@ -1,17 +1,19 @@
 #!/bin/bash
 
+export CUDA_VISIBLE_DEVICES=2
+python main.py \
+    --config configs/huffpost.yml
 
 # for embedding in avg idf cnn
-for embedding in avg
-do 
-    python main.py \
-        --dataset huffpos \
-        --mode train \
-        --num_way 2 \
-        --num_way 1 \
-        --cls rr \
-        --emb $embedding
-done
+# do 
+#     python main.py \
+#         --dataset huffpos \
+#         --mode train \
+#         --num_way 2 \
+#         --num_way 1 \
+#         --cls rr \
+#         --emb $embedding
+# done
 
 # https://github.com/YujiaBao/Distributional-Signatures/blob/master/bin/our.sh 
 # if [ "$dataset" = "fewrel" ]; then

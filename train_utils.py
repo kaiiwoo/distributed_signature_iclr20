@@ -1,29 +1,10 @@
-from tracemalloc import Statistic
 from itertools import chain
 import torch
-import numpy as np
-
+import random
+from tqdm import tqdm
 from stats import Statistics
+from data_utils import pad_sent
 
-
-"""[summary]
-
-    Args:
-        support = torch.stack(support, dim=0) #(N*K, max-len)
-        support_gt = torch.stack(support_gt, dim=0) #(N*K, N)
-        query = torch.stack(query, dim=0) #(N*L, max-len)
-        query_gt = torch.stack(query_gt, dim=0) #(N*L, N)
-
-    return {
-        "support" : (support, length)
-        "support_gt" : support_gt,
-        "query" : (query, length)
-        "query_gt" : query_gt,
-        "src_stats" : source_stats,
-        "sup_stats" : support_stats
-    }
-    """
-    
 def compute_acc(pred, gt):
     n_total = gt.shape[0]
     return torch.sum(torch.argmax(pred, dim=-1) == gt) / n_total * 100
@@ -56,18 +37,18 @@ def test_single_task(model, data):
     
 
 
-def make_batch_for_epoch(args, dataset):
-    """[summary]
+def make_batch_for_epoch(args, dataset, vocab):
+    """make_batch_for_epoch
 
     Args:
-        args ([type]): [description]
-        dataset ([type]): [description]
+        args (Munch): _description_
+        dataset (Dataset): _description_
+        vocab (vocab): _description_
 
     Returns:
         dict: value is list
     """
     classes = dataset.classes
-    vocab = dataset.vocab
     S = Statistics(vocab)
     
     N = args.n_way
@@ -85,12 +66,12 @@ def make_batch_for_epoch(args, dataset):
     source_stats = [] #length = B
     support_stats = [] #length = B
     
-    for _ in range(args.n_episode):
-        sampled_cls = np.random.sample(classes, N)
+    for _ in tqdm(range(args.n_episode), desc="making batch for tasks"):
+        sampled_cls = random.sample(classes, N)
 
         # 서포트셋과 소스풀은, 매 에피소드마다 새롭게 쓰여져야 함.
         src_pool = [x for x in dataset if x["label"] not in sampled_cls] 
-        longest = torch.max([x["text"].shape[0] for x in dataset if x["label"] in sampled_cls])
+        longest = max([len(x["tokenized"]) for x in dataset if x["label"] in sampled_cls])
 
         # get statistics. dictionary
         uni_src = S.get_stats(src_pool, stat_type='uni')
@@ -119,22 +100,13 @@ def make_batch_for_epoch(args, dataset):
             
             target_data = [x for x in dataset if x["label"] == label]
             
-            ########### 나 이거 왜 구한거지.../ 2022.02.14
-            # update stat info of the target data
-            # uni_tgt = S.get_stats(target_data, stat_type='uni')
-            # idf_tgt = S.get_stats(target_data, stat_type='idf')
-            
-            # doc(sent)에 등장하는 단어들의 stat 추가 및 업데이트 
-            # uni_stat_dict.update(uni_tgt)
-            # idf_stat_dict.udpate(idf_tgt)
-            
             # random sample안하고, N_shot & N_query의 크기만큼 인덱싱해서 support & query 구축함. -> 소스코드 구현 방식 따라하기...
-            s_data = [pad_sent(x["text"], vocab['<PAD>'], max_len=longest) for x in target_data[:K]] #(K * max-len)
+            s_data = [pad_sent(x["tokenized"], vocab['<PAD>'], max_len=longest) for x in target_data[:K]] #(K * max-len)
             s_data = torch.stack(s_data, dim=0) #(K, max-len)
             s_len = [x["length"] for x in target_data[:K]] #length = K
             s_label = gt.repeat(K) #(K, N)
 
-            q_data = [pad_sent(x["text"], vocab['<PAD>'], max_len=longest) for x in target_data[K : K+L]] #(L * max-len)
+            q_data = [pad_sent(x["tokenized"], vocab['<PAD>'], max_len=longest) for x in target_data[K : K+L]] #(L * max-len)
             q_data = torch.stack(q_data, dim=0) #(L, max-len)
             q_len = [x["length"] for x in target_data[K : K+L]] #length = L
             q_label = gt.repeat(L) #(L, N)

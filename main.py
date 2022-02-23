@@ -1,26 +1,19 @@
 import os
-import sys
 import yaml
 import json
 import logging
 import argparse
-from datetime import datetime
-from distutils.util import strtobool
 
 import torch
-import numpy as np
 from tqdm import tqdm
 from munch import Munch
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader
 
-from dataset import get_dataset
-from models.fullmodel import FullModel
+from models.rr import RidgeRegressor
 
 from train_utils import make_batch_for_epoch, test_single_task, train_single_task
 from data_utils import get_dataset
-from utils import set_random_seed, tprint
-from stats import get_stats
+from utils import set_random_seed, with_time
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -45,24 +38,27 @@ def validate(model, args, dataset, verbose=True):
 
 
 def train(args):
-    train_set, val_set, _ = get_dataset(args)
+    set_random_seed(args.seed)
+    
+    train_set, val_set, _, vocab = get_dataset(args)
     
     # classifier, model(embedding), 
-    model = FullModel(args)
+    if args.classifier == 'rr':
+        model = RidgeRegressor(args, vocab)
     device = 'cuda' if args.use_cuda else 'cpu'
     model.to(device)
 
     # optimizer
     if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.params, lr=args.lr)
-        
-        
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    
     best_val_acc = -1.0
     best_epoch = 0
     count = 0
     
+    # loop
     for epoch in tqdm(range(args.n_epoch), desc="Overall training loop"):
-        batch = make_batch_for_epoch(args, train_set) # support, support_gt, query, query_gt, src_stats, sup_stats = batch
+        batch = make_batch_for_epoch(args, train_set, vocab) # support, support_gt, query, query_gt, src_stats, sup_stats = batch
         
         # iterate for all episodes(tasks)
         for i, task_data in enumerate(zip(list(batch.values()))):
@@ -116,9 +112,9 @@ if __name__ == "__main__":
         opt.update(vars(args))
 
     # Logger
-    opt['exp_name'] = tprint(opt['exp_name'])
+    opt['exp_name'] = with_time(opt['exp_name'])
     opt['log_path'] = os.path.join(opt['log_path'], opt['exp_name'])
-    opt['log_path'].mkdir(parents=True, exist_ok=True)
+    os.makedirs(opt['log_path'], exist_ok=True)
     opt['writer'] = tensorboard.SummaryWriter(opt['log_path'])
     logger.info(f"SummaryWriter under {opt['log_path']}")
 

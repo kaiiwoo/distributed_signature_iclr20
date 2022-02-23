@@ -1,74 +1,83 @@
-from itertools import Counter
-from collections import defaultdict
+from collections import defaultdict, Counter
 from multiprocessing.sharedctypes import Value
-from tracemalloc import Statistic
 
+import torch
 import numpy as np
-from torchtext.vocab import Vocab
+from math import log1p
 from torchtext.data.utils import get_tokenizer
 
 
 
 class Statistics(object):
-    def __init__(vocab, self):
+    def __init__(self, vocab):
         # vocab 없이 들어온 dataset만으로.. 구축..? 토크나이저 필요함 근데.
         self.vocab = vocab 
         
         
     def idf(self, dataset, eps=1e-3):
-        """[summary]
+        """Inverse document frequency
 
         Args:
-            dataset ([type]): [description]
-            eps ([type], optional): [description]. Defaults to 1e-3.
+            dataset (list of dict):  return {
+            "tokenized": self.token_indexing(self.data[idx]["text"]),
+            "label": self.data[idx]["label"],
+            "length": length,
+            "vocab_size": len(self.vocab)
+        }
+            eps (float, optional): Defaults to 1e-3.
 
         Returns:
             dict: {x: IDF(x)}
         """
-        # total number of documents(for training set)
+        # total number of documents(for source pool)
         D = len(dataset)
+        counter = Counter()
         
-        doc_counter = defaultdict(int)
-
-        for token in self.vocab:
-            for doc, _ in dataset:
-                doc_tokens = self.vocab(doc)
-                
-                # 해당 token을 가진 document 갯수 세기
-                if token in doc_tokens:
-                    doc_counter[token] += 1
-        
-        stats = {}
-
-        # compute idf
-        for token, count in doc_counter.items():
-            idx = self.vocab(token) #attgen.py 에서 손 쉽게 stat을 concat시키기위해서 w:stat 아닌 i:stat으로 했음
-            stats[idx] = np.log(np.divide(D, count))
+        # count token via lookup_tokens
+        for data in dataset:
+            tokens = self.vocab.lookup_tokens(data["tokenized"])
+            counter.update(tokens)
             
-        return stats
+        
+        # 맘에 안들어도 먼저 돌아가게,,
+        def get_idf(word):
+            count = 0
+            for doc in [x['tokenized'] for x in dataset]:
+                if self.vocab([word])[0] in doc:
+                    count += 1
 
+            return log1p(D / eps + count)
+            
+        idf = {}
+        for token in dict(counter).keys():
+            idf[token] = get_idf(token)
+        
+        return idf
+            
+            
     def unigram(self, dataset, eps=1e-3):
         """unigram stats. 소스코드의 args.meta_iwf == s(x)
 
         Args:
-            dataset (list): [description]
-            eps ([type], optional): [description]. Defaults to 1e-3.
+            dataset (list of dict): 
+            eps (float, optional): Defaults to 1e-3.
 
-        Returns:
+        Returns:~
             stats(dict): {x : p(x)}
         """
         counter = Counter()
         
-        for text, _ in dataset:
-            tokens = self.vocab(text)
+        # count token via lookup_tokens
+        for data in dataset:
+            tokens = self.vocab.lookup_tokens(data["tokenized"])
             counter.update(tokens)
 
         stats = {}
         total_count = sum(counter.values())
-
         for word, count in dict(counter).items():
             uni_p = count / total_count
-            idx = self.vocab(word) 
+            # input: list / output : list
+            idx = self.vocab([word])[0]
             stats[idx] = eps / (eps +  uni_p)
             
         return stats

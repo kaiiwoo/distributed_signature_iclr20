@@ -1,14 +1,10 @@
 from munch import Munch
 
-import torch
-from models.fullmodel import 
-from nn import 
-from proto import 
-from rr import RidgeRegressor
+from .rr import RidgeRegressor
 
 
 class FullModel(nn.Module):
-    def __init__(args: Munch, self) -> None:
+    def __init__(args: Munch, vocab) -> None:
         """Attention Generator + Classifier
 
             args (Munch): arguments
@@ -16,9 +12,11 @@ class FullModel(nn.Module):
         if args.classifier == 'rr':
             self.top = RidgeRegressor(args)
         elif args.classifier == 'proto':
-            self.top = 
+            # self.top = 
+            pass
         elif args.classifier == 'nn':
-            self.top = 
+            # self.top = 
+            pass
         
         
     def predict(self):

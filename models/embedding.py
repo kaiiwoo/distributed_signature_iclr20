@@ -1,12 +1,15 @@
+from multiprocessing.sharedctypes import Value
 import torch
 import torch.nn as nn 
 import torch.nn.functional as F
-import numpy as np
 import torchtext
-import torchtext.vocab.FastText as FastText
+import numpy as np
 
 from bert import BertRepresentation
 from einops import rearrange, reduce, repeat
+from torchtext.vocab import Vectors
+
+
 
 # embedding 셀렉팅 모듈
 # https://github.com/YujiaBao/Distributional-Signatures/blob/master/src/embedding/factory.py
@@ -17,16 +20,16 @@ from einops import rearrange, reduce, repeat
 # Avg.는 별개의 representation! 어텐션 weighted sum이랑 다른 거임. 구분해서 생각하자. 
 class MetaEmbedding(object):
     def __init__(self, args) -> None:
-        self.represent = args.represent
         
         if args.use_bert:
             self.embedding = BertRepresentation(args)
         else: 
-            self.embedding = nn.Embedding.from_pretrained('./vector_cache/wiki.en.vec.pt')
+            vec = torchtext.vocab.FastText(language='en')
+            self.embedding = nn.Embedding.from_pretrained(vec.vectors)
         
-    def original_emb(self, x):
-        return x
-        
+    def _shape(self):
+        return self.embedding.weight.shape
+
     def avg_emb(self, x, length):
         """avg emb
 
@@ -47,7 +50,6 @@ class MetaEmbedding(object):
         return holder
         
         
-        
     def idf_emb(self, x):
         pass
 
@@ -58,8 +60,8 @@ class MetaEmbedding(object):
     def __call__(self, x, represent=None):
         x = self.embedding(x)
         
-        if represent == 'default':
-            return self.original_emb(x)
+        if represent == 'default' or None:
+            return x
         elif represent == 'avg':
             return self.avg_emb(x)
         elif represent == 'idf':
@@ -67,24 +69,4 @@ class MetaEmbedding(object):
         elif represent == 'cnn':
             return self.cnn_emb()
         else:
-            return x
-        
-        
-        
-class AvgEmb(nn.Module):
-    def __init__(self, args):
-        super(AvgEmb, self).__init__()
-        self.args = args
-
-        
-    def forward(self, x, lengths):
-        
-
-        mask = torch.where(x!=pad_idx, True, False)
-        torch.masked_select(x, )
-        
-        
-        
-        
-        return 
-        
+            raise ValueError

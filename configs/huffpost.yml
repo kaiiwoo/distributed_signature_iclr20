@@ -7,8 +7,8 @@ data_path: './data/HuffPost/News_Category_Dataset_v2.json'
 classifier: 'rr'
 use_bert: False
 stat_type: ['uni', 'ent'] #unigram - s(x) / entropy - t(x)
-word_represent: 'default' # default, avg, cnn, idf
 hid_dim: 50
+use_stat: True # text + t(x) + s(x)
 dropout: 0.1
 bidirectional: True
 
@@ -25,7 +25,8 @@ n_test_epi: 1000
 early_stop: 20 #20epoch 동안 val loss 안 나아지면 stop
 seed: 330 # 소스코드 시드 
 
-# label config
+# dadta config
+n_class: 41
 label_split: [20, 5, 16]
 split_type: 'easy'
 n_way: 5

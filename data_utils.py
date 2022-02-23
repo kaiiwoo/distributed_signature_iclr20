@@ -1,15 +1,19 @@
+import json
 import torch
 import numpy as np
 from tqdm import tqdm
 
-from dataset import TextClassificationData
+from dataset import TextClassificationData, Vocabulary
 
-"""Functions
-"""
-def label_extractor(dataname):
+def label_extractor(datapath):
     labels = []
     
-    if dataname == "huffpost":
+    if len(datapath.split('/')) == 4:
+        name = datapath.split('/')[2]
+    elif len(datapath.split('/')) == 3:
+        name = datapath.split('/')[1]
+    
+    if name.lower() == "huffpost":
         with open(datapath, 'r', encoding='utf-8') as f:
             for line in tqdm(f, desc="caching all objects.."):
                 obj = json.loads(line)
@@ -40,9 +44,10 @@ def pad_sent(sent, pad_idx, max_len:int):
 
 def class_splitter(args):
     n_train, n_val, n_test = args.label_split[0], args.label_split[1], args.label_split[2]
-    all_cls = label_extractor(args.data)
+    all_cls = label_extractor(args.data_path)
     
     # A.4 Datasets
+    print(f"data split: {args.split_type}")
     if args.split_type == "easy":
         all_cls = list(set(all_cls))
         np.random.permutation(all_cls)
@@ -61,15 +66,18 @@ def class_splitter(args):
 
     return {'train_cls': train_cls,
             'val_cls': val_cls,
-            'test_cls': test_cls}
-
-
+            'test_cls': test_cls, 
+            }
 
 def get_dataset(args):
     cls_dict = class_splitter(args)
     
-    train_set = TextClassificationData(args, classes=cls_dict['train_cls'])
-    val_set = TextClassificationData(args, classes=cls_dict['val_cls'])
-    test_set = TextClassificationData(args, classes=cls_dict['test_cls'])
+    # construct vocab from totaldataset. 
+    # 원래 학습데이터로만 vocab 구축하는게 맞는데, 원본 코드 보니까 전체 doc가지고 만들어서 그냥 따라간다,,
+    vocab = Vocabulary(args).vocab
+    
+    train_set = TextClassificationData(args, vocab,  classes=cls_dict['train_cls'])
+    val_set = TextClassificationData(args, vocab,  classes=cls_dict['val_cls'])
+    test_set = TextClassificationData(args, vocab, classes=cls_dict['test_cls'])
 
-    return (train_set, val_set, test_set)
+    return (train_set, val_set, test_set, vocab)

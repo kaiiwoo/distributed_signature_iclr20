@@ -1,14 +1,9 @@
-import os
-from unicodedata import bidirectional
-from winreg import REG_RESOURCE_REQUIREMENTS_LIST
-import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from embedding import MetaEmbedding
+from models.embedding import MetaEmbedding
 from einops import rearrange, reduce, repeat
 
 
@@ -33,11 +28,11 @@ class AttGenerator(nn.Module):
         # select embedding table (FastText or BERT / default vs. avg vs. cnn vs. idf)
         self.embedding = MetaEmbedding(args)
         
-        if args.word_represent == 'default':
+        if args.use_stat:
             # unigram + entropy^-1
-            input_dim = self.embedding.shape[-1] + 1 + 1
+            input_dim = self.embedding._shape()[-1] + 1 + 1
         else:
-            input_dim = self.embedding.shape[-1]
+            input_dim = self.embedding._shape()[-1]
             
             
         self.lstm = nn.LSTM(input_dim,
@@ -57,9 +52,8 @@ class AttGenerator(nn.Module):
         
         
     def entropy_to_tensor(self, input_txt, stat):
+        pass
         
-
-
         
     def stat_to_tensor(self, input_txt, stat):
         """입력에 concat시킬 수 있는 형태로 stat 변환
